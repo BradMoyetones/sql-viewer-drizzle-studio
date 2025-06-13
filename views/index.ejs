@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <title>Selector de Base de Datos - Drizzle Studio</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/output.css">
+</head>
+<body>
+    <div id="app" class="h-screen bg-zinc-950 overflow-hidden">
+        <aside id="sidebarMain" class="[grid-area:aside] bg-muted h-full border-r p-4 overflow-y-auto">
+            <h1 class="text-amber-500 text-2xl p-2 mb-4">DBs - Localhost</h1>
+            <% if (databases.length > 0) { %>
+                <ul id="db-list" class="space-y-2">
+                    <% databases.forEach(db => { %>
+                        <li class="flex flex-col w-full">
+                            <div class="flex relative items-center justify-between w-full">
+                                <button
+                                    id="db-<%= db.name %>"
+                                    class="w-full flex items-center gap-2 text-sm px-4 py-2 rounded hover:bg-primary-foreground transition text-primary/50 hover:text-primary"
+                                    onclick="selectDatabase('<%= db.name %>')"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-database"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0" /><path d="M4 6v6a8 3 0 0 0 16 0v-6" /><path d="M4 12v6a8 3 0 0 0 16 0v-6" /></svg>
+                                    <p class="line-clamp-1 truncate max-w-3/4" title="<%= db.name %>">
+                                        <%= db.name %>
+                                    </p>
+                                </button>
+
+                                <div class="flex items-center gap-1 absolute top-2 right-2">
+                                    <button
+                                        class="toggle-tables text-primary/50 hover:text-primary transition"
+                                        data-db="<%= db.name %>"
+                                        title="Mostrar/ocultar tablas"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron-icon"><path d="m6 9 6 6 6-6"/></svg>
+                                    </button>
+                                    
+                                    <a
+                                        href="/backup/json?db=<%= encodeURIComponent(db.name) %>"
+                                        class="ml-1 text-amber-400 hover:text-amber-300 transition"
+                                        title="Descargar backup"
+                                        download
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <div class="tables-container hidden pl-6 mt-1 mb-2" id="tables-<%= db.name %>">
+                                <% if (db.tables && db.tables.length > 0) { %>
+                                    <ul class="space-y-1 border-l border-primary/20 pl-2">
+                                        <% db.tables.forEach(table => { %>
+                                            <li>
+                                                <button 
+                                                    class="w-full text-left text-xs px-2 py-1 rounded hover:bg-primary-foreground transition text-primary/40 hover:text-primary flex items-center gap-1"
+                                                    onclick="selectTable('<%= db.name %>', '<%= table %>')"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></svg>
+                                                    <%= table %>
+                                                </button>
+                                            </li>
+                                        <% }) %>
+                                    </ul>
+                                <% } else { %>
+                                    <div class="text-xs text-zinc-400 italic px-2 py-1">
+                                        No hay tablas en esta base de datos.
+                                    </div>
+                                <% } %>
+                            </div>
+                        </li>
+                    <% }) %>
+                </ul>
+            <% } else { %>
+                <div class="text-sm text-zinc-400 italic px-4 py-2">
+                    No hay bases de datos disponibles.
+                </div>
+            <% } %>
+        </aside>
+
+        <main id="main" class="relative [grid-area:main]">
+            <div id="spinner" class="absolute inset-0 flex items-center justify-center bg-zinc-950 text-white text-xl z-50 hidden">
+                <ul>
+                    <li>
+                        <div class="loader">
+                            <div class="child"></div>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="text"></div>
+                    </li>
+                </ul>
+            </div>
+            <iframe id="studio-frame" src="" class="w-full h-full border-0 hidden"></iframe>
+        </main>
+    </div>
+
+    <script>
+        const databases = <%- JSON.stringify(databases) %>;
+        console.log(databases);
+        
+        let isLoading = false;
+        let lastDbClicked = null;
+        let abortController = null;
+
+        <% if (message) { %>
+            showToast("<%= message.replace(/"/g, '\\"') %>", true, "Reintentar", retryConnection);
+        <% } %>
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get all toggle buttons
+            const toggleButtons = document.querySelectorAll('.toggle-tables');
+            
+            // Add click event listener to each toggle button
+            toggleButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Prevent triggering the database selection
+                    
+                    // Get the database name from the data attribute
+                    const dbName = this.getAttribute('data-db');
+                    
+                    // Find the tables container for this database
+                    const tablesContainer = document.getElementById(`tables-${dbName}`);
+                    
+                    // Toggle the hidden class
+                    tablesContainer.classList.toggle('hidden');
+                    
+                    // Rotate the chevron icon when expanded
+                    const chevronIcon = this.querySelector('.chevron-icon');
+                    if (tablesContainer.classList.contains('hidden')) {
+                        chevronIcon.style.transform = 'rotate(0deg)';
+                    } else {
+                        chevronIcon.style.transform = 'rotate(180deg)';
+                    }
+                });
+            });
+            
+            // Function to select a table (you'll need to implement this based on your needs)
+            window.selectTable = function(dbName, tableName) {
+                console.log(`Selected table: ${tableName} in database: ${dbName}`);
+                // Add your logic here to handle table selection
+                // For example, you might want to load the table data in the main content area
+            };
+        });
+
+        async function selectDatabase(dbName) {
+            if (isLoading) {
+                // Cancelamos la petición anterior si existe
+                if (abortController) abortController.abort();
+            }
+
+            isLoading = true;
+            lastDbClicked = dbName;
+
+            const spinner = document.getElementById('spinner');
+            const iframe = document.getElementById('studio-frame');
+
+            spinner.classList.remove('hidden');
+            iframe.classList.add('hidden');
+            iframe.src = '';
+
+            // Usamos AbortController para cancelar fetchs anteriores si se repiten
+            abortController = new AbortController();
+
+            try {
+                const res = await fetch('/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `database=${encodeURIComponent(dbName)}`,
+                    signal: abortController.signal,
+                });
+
+                if (!res.ok) throw new Error("No se pudo seleccionar la base de datos");
+
+                // ✅ Marcar como seleccionada
+                document.querySelectorAll('#db-list button').forEach(btn => {
+                    btn.classList.remove('bg-primary-foreground', '!text-primary');
+                });
+                const selectedBtn = document.getElementById(`db-${dbName}`);
+                selectedBtn?.classList.add('bg-primary-foreground', '!text-primary');
+
+                // Esperamos un poco antes de mostrar el iframe (simula carga real)
+                setTimeout(() => {
+                    if (lastDbClicked !== dbName) {
+                        // El usuario ya hizo clic en otra DB
+                        return;
+                    }
+
+                    iframe.src = 'https://local.drizzle.studio/?port=3001';
+
+                    iframe.onload = () => {
+                        // Solo mostrar si sigue siendo la misma
+                        if (lastDbClicked === dbName) {
+                            spinner.classList.add('hidden');
+                            iframe.classList.remove('hidden');
+                        }
+                        isLoading = false;
+                        abortController = null;
+                    };
+                }, 300); // Más rápido y sin lag
+
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    // Se canceló porque seleccionó otra DB
+                    return;
+                }
+
+                console.error(err);
+                showToast("❌ Error al iniciar Drizzle Studio", true);
+                spinner.classList.add('hidden');
+                isLoading = false;
+                abortController = null;
+            }
+        }
+
+        async function retryConnection() {
+            try {
+                const res = await fetch('/reconnect');
+                const data = await res.json();
+
+                if (data.success && Array.isArray(data.databases)) {
+                    const dbList = document.getElementById('db-list');
+                    dbList.innerHTML = '';
+
+                    data.databases.forEach(db => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `
+                            <button
+                                id="db-${db}"
+                                class="w-full flex items-center gap-2 text-sm px-4 py-2 rounded hover:bg-primary-foreground transition text-primary/50 hover:text-primary"
+                                onclick="selectDatabase('${db}')"
+                            >
+                                <svg  xmlns="http://www.w3.org/2000/svg"  width="20"  height="20"  viewBox="0 0 24 24"  fill="none"  stroke="currentColor"  stroke-width="2"  stroke-linecap="round"  stroke-linejoin="round"  class="icon icon-tabler icons-tabler-outline icon-tabler-database"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0" /><path d="M4 6v6a8 3 0 0 0 16 0v-6" /><path d="M4 12v6a8 3 0 0 0 16 0v-6" /></svg>
+
+                                ${db}
+                            </button>
+                        `;
+                        dbList.appendChild(li);
+                    });
+
+                    showToast("✅ Conexión restablecida exitosamente");
+                    document.querySelector('[onclick="retryConnection()"]')?.closest('div')?.remove();
+                } else {
+                    alert(data.message || 'No se pudo reconectar.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Error al intentar reconectar con el servidor.');
+            }
+        }
+
+        function showToast(message, isError = false, actionText = null, callback = null) {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded shadow-lg transition-opacity opacity-0 z-50 flex items-center justify-between gap-4 ${
+                isError ? 'bg-red-700' : 'bg-green-700'
+            } text-white min-w-[300px]`;
+
+            const span = document.createElement('span');
+            span.textContent = message;
+            toast.appendChild(span);
+
+            if (actionText && typeof callback === 'function') {
+                const button = document.createElement('button');
+                button.textContent = actionText;
+                button.className = 'ml-auto px-3 py-1 bg-white text-black text-sm rounded hover:bg-gray-200';
+                button.onclick = () => {
+                    callback();
+                };
+                toast.appendChild(button);
+            }
+
+            document.body.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.add('opacity-100'));
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                setTimeout(() => toast.remove(), 500);
+            }, 7000); // Puedes subir el tiempo si hay botón
+        }
+
+        function downloadDatabase(dbName) {
+            const url = `/download?database=${encodeURIComponent(dbName)}`;
+            window.open(url, '_blank'); // Inicia la descarga
+        }
+    </script>
+
+</body>
+</html>

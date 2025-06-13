@@ -1,0 +1,13 @@
+// tsconfig.json
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "module": "CommonJS",
+        "esModuleInterop": true,
+        "moduleResolution": "node",
+        "resolveJsonModule": true,
+        "strict": true,
+        "skipLibCheck": true
+    },
+    "include": ["drizzle.config.ts", "schema"]
+}
