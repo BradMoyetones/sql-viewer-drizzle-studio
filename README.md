@@ -32,7 +32,9 @@ npm install
 
 3. Rename the example environment file:
 
-   mv .env.example .env
+```bash
+mv .env.example .env
+```
 
 4. Edit the .env file and fill in the following variables:
 
