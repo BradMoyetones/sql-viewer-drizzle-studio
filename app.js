@@ -38,14 +38,19 @@ function killDrizzleProcess() {
     }
 }
 
+const pool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    multipleStatements: true
+});
+
 app.get('/', async (req, res) => {
     try {
-        const conn = await mysql.createConnection({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            multipleStatements: true,
-        });
+        const conn = await pool.getConnection();
 
         const [databases] = await conn.query('SHOW DATABASES');
 
