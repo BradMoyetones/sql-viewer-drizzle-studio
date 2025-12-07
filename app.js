@@ -38,24 +38,28 @@ function killDrizzleProcess() {
     }
 }
 
-// const pool = mysql.createPool({
-//     host: process.env.DB_HOST,
-//     user: process.env.DB_USER,
-//     password: process.env.DB_PASSWORD,
-//     waitForConnections: true,
-//     connectionLimit: 10,
-//     queueLimit: 0,
-//     multipleStatements: true
-// });
+const pool = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    waitForConnections: true,
+    connectionLimit: 40,
+    queueLimit: 0,
+    multipleStatements: true,
+    connectTimeout: 60000 * 10
+});
 
 app.get('/', async (req, res) => {
+    let conn;
     try {
-        const conn = await mysql.createConnection({
-            host: process.env.DB_HOST,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            multipleStatements: true,
-        });
+        // const conn = await mysql.createConnection({
+        //     host: process.env.DB_HOST,
+        //     user: process.env.DB_USER,
+        //     password: process.env.DB_PASSWORD,
+        //     multipleStatements: true,
+        // });
+
+        conn = await pool.getConnection();
 
         const [databases] = await conn.query('SHOW DATABASES');
 
@@ -93,6 +97,8 @@ app.get('/', async (req, res) => {
             selectedDb: null,
             message: 'No se pudo conectar con el servidor de base de datos.',
         });
+    } finally {
+        if (conn) conn.release();
     }
 });
 
